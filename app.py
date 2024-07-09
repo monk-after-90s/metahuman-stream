@@ -125,9 +125,8 @@ async def human(request):
 
     if params['type']=='echo':
         nerfreal.put_msg_txt(params['text'])
-    elif params['type']=='chat':
-        res=await asyncio.get_event_loop().run_in_executor(None, llm_response(params['text']))                          
-        nerfreal.put_msg_txt(res)
+    elif params['type'] == 'chat':
+        nerfreal.put_msg_txt(llm_response(params['text']))
 
     return web.Response(
         content_type="application/json",
