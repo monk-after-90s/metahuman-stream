@@ -67,15 +67,15 @@ def __mirror_index(size, index):
     if turn % 2 == 0:
         return res
     else:
-        return size - res - 1 
+        return size - res - 1
 
 def inference(render_event,batch_size,face_imgs_path,audio_feat_queue,audio_out_queue,res_frame_queue):
-    
+
     model = load_model("./models/wav2lip.pth")
     input_face_list = glob.glob(os.path.join(face_imgs_path, '*.[jpJP][pnPN]*[gG]'))
     input_face_list = sorted(input_face_list, key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
     face_list_cycle = read_imgs(input_face_list)
-    
+
     #input_latent_list_cycle = torch.load(latents_out_path)
     length = len(face_list_cycle)
     index = 0
@@ -84,13 +84,11 @@ def inference(render_event,batch_size,face_imgs_path,audio_feat_queue,audio_out_
     print('start inference')
     while True:
         if render_event.is_set():
-            starttime=time.perf_counter()
-            mel_batch = []
             try:
                 mel_batch = audio_feat_queue.get(block=True, timeout=1)
             except queue.Empty:
                 continue
-                
+
             is_all_silence=True
             audio_frames = []
             for _ in range(batch_size*2):
@@ -118,7 +116,7 @@ def inference(render_event,batch_size,face_imgs_path,audio_feat_queue,audio_out_
 
                 img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
                 mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
-                
+
                 img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
                 mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
 
@@ -137,7 +135,7 @@ def inference(render_event,batch_size,face_imgs_path,audio_feat_queue,audio_out_
                     #self.__pushmedia(res_frame,loop,audio_track,video_track)
                     res_frame_queue.put((res_frame,__mirror_index(length,index),audio_frames[i*2:i*2+2]))
                     index = index + 1
-                #print('total batch time:',time.perf_counter()-starttime)            
+                #print('total batch time:',time.perf_counter()-starttime)
         else:
             time.sleep(1)
     print('musereal inference processor stop')
@@ -155,8 +153,8 @@ class LipReal(BaseReal):
         #### musetalk
         self.avatar_id = opt.avatar_id
         self.avatar_path = f"./data/avatars/{self.avatar_id}"
-        self.full_imgs_path = f"{self.avatar_path}/full_imgs" 
-        self.face_imgs_path = f"{self.avatar_path}/face_imgs" 
+        self.full_imgs_path = f"{self.avatar_path}/full_imgs"
+        self.face_imgs_path = f"{self.avatar_path}/face_imgs"
         self.coords_path = f"{self.avatar_path}/coords.pkl"
         self.batch_size = opt.batch_size
         self.idx = 0
@@ -167,7 +165,7 @@ class LipReal(BaseReal):
         self.asr = LipASR(opt,self)
         self.asr.warm_up()
         #self.__warm_up()
-        
+
         self.render_event = mp.Event()
         mp.Process(target=inference, args=(self.render_event,self.batch_size,self.face_imgs_path,
                                            self.asr.feat_queue,self.asr.output_queue,self.res_frame_queue,
@@ -188,21 +186,21 @@ class LipReal(BaseReal):
         input_img_list = glob.glob(os.path.join(self.full_imgs_path, '*.[jpJP][pnPN]*[gG]'))
         input_img_list = sorted(input_img_list, key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
         self.frame_list_cycle = read_imgs(input_img_list)
-        
-    
+
+
     def put_msg_txt(self,msg):
         self.tts.put_msg_txt(msg)
-    
+
     def put_audio_frame(self,audio_chunk): #16khz 20ms pcm
         self.asr.put_audio_frame(audio_chunk)
 
     def pause_talk(self):
         self.tts.pause_talk()
         self.asr.pause_talk()
-      
+
 
     def process_frames(self,quit_event,loop=None,audio_track=None,video_track=None):
-        
+
         while not quit_event.is_set():
             try:
                 res_frame,idx,audio_frames = self.res_frame_queue.get(block=True, timeout=1)
@@ -233,7 +231,7 @@ class LipReal(BaseReal):
 
             image = combine_frame #(outputs['image'] * 255).astype(np.uint8)
             new_frame = VideoFrame.from_ndarray(image, format="bgr24")
-            asyncio.run_coroutine_threadsafe(video_track._queue.put(new_frame), loop) 
+            asyncio.run_coroutine_threadsafe(video_track._queue.put(new_frame), loop)
 
             for audio_frame in audio_frames:
                 frame,type = audio_frame
@@ -244,8 +242,8 @@ class LipReal(BaseReal):
                 # if audio_track._queue.qsize()>10:
                 #     time.sleep(0.1)
                 asyncio.run_coroutine_threadsafe(audio_track._queue.put(new_frame), loop)
-        print('musereal process_frames thread stop') 
-            
+        print('musereal process_frames thread stop')
+
     def render(self,quit_event,loop=None,audio_track=None,video_track=None):
         #if self.opt.asr:
         #     self.asr.warm_up()
@@ -260,7 +258,7 @@ class LipReal(BaseReal):
         totaltime=0
         _starttime=time.perf_counter()
         #_totalframe=0
-        while not quit_event.is_set(): 
+        while not quit_event.is_set():
             # update texture every frame
             # audio stream thread...
             t = time.perf_counter()
@@ -272,10 +270,9 @@ class LipReal(BaseReal):
             if video_track._queue.qsize()>=5:
                 print('sleep qsize=',video_track._queue.qsize())
                 time.sleep(0.04*video_track._queue.qsize()*0.8)
-                
+
             # delay = _starttime+_totalframe*0.04-time.perf_counter() #40ms
             # if delay > 0:
             #     time.sleep(delay)
         self.render_event.clear() #end infer process render
         print('musereal thread stop')
-            
