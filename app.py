@@ -438,7 +438,13 @@ if __name__ == '__main__':
         for _ in range(opt.max_session):
             nerfreal = LipReal(opt)
             nerfreals.append(nerfreal)
+    elif opt.model == 'digitalAvatar':
+        from digitalavatarreal import digitalAvatarReal
 
+        print(opt)
+        for _ in range(opt.max_session):
+            nerfreal = digitalAvatarReal(opt)
+            nerfreals.append(nerfreal)
     for _ in range(opt.max_session):
         statreals.append(0)
 
