@@ -325,7 +325,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--asr_save_feats', action='store_true')
     # audio FPS
-    parser.add_argument('--fps', type=int, default=50)
+    parser.add_argument('--fps', type=int, default=50)  # todo 适配，比如24
     # sliding window left-middle-right length (unit: 20ms)
     parser.add_argument('-l', type=int, default=10)
     parser.add_argument('-m', type=int, default=8)
