@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 import os
 import time
@@ -9,15 +8,16 @@ import copy
 import queue
 from threading import Thread
 import multiprocessing as mp
+import torch
+from tritonclient.utils import triton_to_np_dtype
+
 from lipasr import LipASR
 import asyncio
 from av import AudioFrame, VideoFrame
 from basereal import BaseReal
-
 from tqdm import tqdm
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print('Using {} for inference.'.format(device))
+import tritonclient.grpc.aio as grpcclient
+import tritonclient.utils.shared_memory as shm
 
 
 def read_imgs(img_list):
@@ -39,77 +39,164 @@ def __mirror_index(size, index):
         return size - res - 1
 
 
-def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_out_queue, res_frame_queue):
+def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_out_queue, res_frame_queue,
+              triton_url):
+    loop = asyncio.get_event_loop()
+
     input_face_list = glob.glob(os.path.join(face_imgs_path, '*.[jpJP][pnPN]*[gG]'))
     input_face_list = sorted(input_face_list, key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
     face_list_cycle = read_imgs(input_face_list)
 
-    # input_latent_list_cycle = torch.load(latents_out_path)
     length = len(face_list_cycle)
     index = 0
     count = 0
     counttime = 0
     print('start inference')
-    while True:
-        if render_event.is_set():
-            try:
-                mel_batch = audio_feat_queue.get(block=True, timeout=1)
-            except queue.Empty:
-                continue
 
-            is_all_silence = True
-            audio_frames = []
-            for _ in range(batch_size * 2):
-                frame, type = audio_out_queue.get()
-                audio_frames.append((frame, type))
-                if type == 0:
-                    is_all_silence = False
+    # wav2lip256外部推理Triton服务的客户端
+    triton_client = grpcclient.InferenceServerClient(url=triton_url)
+    shm_ip_handle, inputs, shm_op_handle, outputs = None, None, None, None
 
-            if is_all_silence:
-                for i in range(batch_size):
-                    res_frame_queue.put((None, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
-                    index = index + 1
+    async def prepare_shm(triton_client: grpcclient.InferenceServerClient, batch_size):
+        """为Triton推理准备共享内存"""
+        # Create shared memory region for output and store shared memory handle
+        outputs_byte_size = 12582912
+        shm_op_handle = shm.create_shared_memory_region("output_data",
+                                                        "/output_simple",
+                                                        outputs_byte_size)
+
+        # Create shared memory region for input and store shared memory handle
+        inputs_byte_size = 25247744
+        shm_ip_handle = shm.create_shared_memory_region(
+            "input_data", "/input_simple", inputs_byte_size)
+        # Register shared memory region for outputs with Triton Server| Register shared memory region for inputs with Triton Server
+        await asyncio.gather(
+            triton_client.register_system_shared_memory("output_data", "/output_simple", outputs_byte_size),
+            triton_client.register_system_shared_memory(
+                "input_data", "/input_simple", inputs_byte_size)
+        )
+        # Set the parameters to use data from shared memory
+        _input0_byte_size = 81920
+        _input1_byte_size = 25165824
+        outputs_byte_size = 12582912
+        inputs = []
+        inputs.append(grpcclient.InferInput("input0", [batch_size, 1, 80, 16], "FP32"))
+        inputs[-1].set_shared_memory("input_data", _input0_byte_size)
+        inputs.append(grpcclient.InferInput("input1", [batch_size, 6, 256, 256], "FP32"))
+        inputs[-1].set_shared_memory("input_data", _input1_byte_size, offset=_input0_byte_size)
+
+        outputs = [grpcclient.InferRequestedOutput("output")]
+        outputs[-1].set_shared_memory("output_data", outputs_byte_size)
+
+        return shm_ip_handle, inputs, shm_op_handle, outputs
+
+    try:
+        shm_ip_handle, inputs, shm_op_handle, outputs = loop.run_until_complete(prepare_shm(triton_client, batch_size))
+        while True:
+            if render_event.is_set():
+                try:
+                    mel_batch = audio_feat_queue.get(block=True, timeout=1)
+                except queue.Empty:
+                    continue
+
+                is_all_silence = True
+                audio_frames = []
+                for _ in range(batch_size * 2):
+                    frame, type = audio_out_queue.get()
+                    audio_frames.append((frame, type))
+                    if type == 0:
+                        is_all_silence = False
+
+                if is_all_silence:
+                    for i in range(batch_size):
+                        res_frame_queue.put((None, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
+                        index = index + 1
+                else:
+                    # print('infer=======')
+                    t = time.perf_counter()
+                    img_batch = []
+                    for i in range(batch_size):
+                        idx = __mirror_index(length, index + i)
+                        face = face_list_cycle[idx]
+                        img_batch.append(face)
+                    img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
+
+                    img_masked = img_batch.copy()
+                    img_masked[:, face.shape[0] // 2:] = 0
+
+                    img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
+                    mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
+
+                    mel_batch = np.transpose(mel_batch, (0, 3, 1, 2)).astype(np.float32)
+                    img_batch = np.transpose(img_batch, (0, 3, 1, 2)).astype(np.float32)
+
+                    # 远程Triton推理
+                    loop.run_until_complete(
+                        inf_through_triton(triton_client, mel_batch, img_batch, shm_ip_handle, inputs, outputs, ))
+
+                    pred: np.ndarray = shm.get_contents_as_numpy(shm_op_handle,
+                                                                 triton_to_np_dtype('FP32'),
+                                                                 [batch_size, 3, 256, 256])
+                    pred = pred.transpose(0, 2, 3, 1) * 255.
+                    # pred: (16,256,256,3)
+                    counttime += (time.perf_counter() - t)
+                    count += batch_size
+                    # _totalframe += 1
+                    if count >= 100:
+                        print(f"------actual avg infer fps:{count / counttime:.4f}")
+                        count = 0
+                        counttime = 0
+                    for i, res_frame in enumerate(pred):
+                        # self.__pushmedia(res_frame,loop,audio_track,video_track)
+                        res_frame_queue.put((res_frame, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
+                        index = index + 1
+                    # print('total batch time:',time.perf_counter()-starttime)
             else:
-                # print('infer=======')
-                t = time.perf_counter()
-                img_batch = []
-                for i in range(batch_size):
-                    idx = __mirror_index(length, index + i)
-                    face = face_list_cycle[idx]
-                    img_batch.append(face)
-                img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
+                time.sleep(1)
+    finally:
+        async def shutdown_triton_client(triton_client: grpcclient.InferenceServerClient, shm_ip_handle, shm_op_handle):
+            """优雅退出Triton客户端"""
+            try:
+                await asyncio.gather(triton_client.unregister_system_shared_memory("input_data"),
+                                     triton_client.unregister_system_shared_memory("output_data"))
+            except:
+                ...
+            try:
+                shm.destroy_shared_memory_region(shm_ip_handle)
+            except:
+                ...
+            try:
+                shm.destroy_shared_memory_region(shm_op_handle)
+            except:
+                ...
+            assert len(shm.mapped_shared_memory_regions()) == 0
 
-                img_masked = img_batch.copy()
-                img_masked[:, face.shape[0] // 2:] = 0
+        loop.run_until_complete(shutdown_triton_client(triton_client, shm_ip_handle, shm_op_handle))
 
-                img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
-                mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
 
-                img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
-                mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
+async def inf_through_triton(triton_client: grpcclient.InferenceServerClient,
+                             mel_batch: np.ndarray,
+                             img_batch: np.ndarray,
+                             shm_ip_handle,
+                             inputs,
+                             outputs):
+    """
+    通过外部wav2lip256的Triton服务进行推理
+    Returns:
 
-                with torch.no_grad():
-                    # pred = model(mel_batch, img_batch) todo 改为远程推理
-                    # mel_batch:(16,1,80,16) img_batch:(16,6,96,96)
-                    # pred: (16,3,96,96)
-                    ...
-                pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
-                # pred: (16,96,96,3)
-                counttime += (time.perf_counter() - t)
-                count += batch_size
-                # _totalframe += 1
-                if count >= 100:
-                    print(f"------actual avg infer fps:{count / counttime:.4f}")
-                    count = 0
-                    counttime = 0
-                for i, res_frame in enumerate(pred):
-                    # self.__pushmedia(res_frame,loop,audio_track,video_track)
-                    res_frame_queue.put((res_frame, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
-                    index = index + 1
-                # print('total batch time:',time.perf_counter()-starttime)
-        else:
-            time.sleep(1)
-    print('musereal inference processor stop')
+    """
+    # 模型
+    model_name = "wav2lip256"
+    model_version = "1"
+    # Put input data values into shared memory
+    _input0_byte_size = 81920
+    shm.set_shared_memory_region(shm_ip_handle, [mel_batch])
+    shm.set_shared_memory_region(shm_ip_handle, [img_batch], offset=_input0_byte_size)
+    # 启动推理
+    output = await triton_client.infer(model_name=model_name, model_version=model_version, inputs=inputs,
+                                       outputs=outputs)
+    # output = output.get_output("output")
+    # return output
 
 
 @torch.no_grad()
@@ -141,16 +228,7 @@ class wav2lip256TritonReal(BaseReal):
         self.render_event = mp.Event()
         mp.Process(target=inference, args=(self.render_event, self.batch_size, self.face_imgs_path,
                                            self.asr.feat_queue, self.asr.output_queue, self.res_frame_queue,
-                                           )).start()
-
-    # def __loadmodels(self):
-    #     # load model weights
-    #     self.audio_processor, self.vae, self.unet, self.pe = load_all_model()
-    #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #     self.timesteps = torch.tensor([0], device=device)
-    #     self.pe = self.pe.half()
-    #     self.vae.vae = self.vae.vae.half()
-    #     self.unet.model = self.unet.model.half()
+                                           opt.triton_url)).start()
 
     def __loadavatar(self):
         with open(self.coords_path, 'rb') as f:
@@ -224,8 +302,6 @@ class wav2lip256TritonReal(BaseReal):
         process_thread.start()
 
         self.render_event.set()  # start infer process render
-        count = 0
-        totaltime = 0
         _starttime = time.perf_counter()
         # _totalframe=0
         while not quit_event.is_set():
