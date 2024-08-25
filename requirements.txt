@@ -40,3 +40,5 @@ diffusers
 accelerate
 
 librosa
+
+tritonclient[all]==2.40.0
