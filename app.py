@@ -438,7 +438,7 @@ if __name__ == '__main__':
         for _ in range(opt.max_session):
             nerfreal = LipReal(opt)
             nerfreals.append(nerfreal)
-    elif opt.model == 'digitalAvatar':
+    elif opt.model == 'wav2lip256tritonreal':
         from wav2lip256tritonreal import wav2lip256TritonReal
 
         print(opt)
