@@ -361,6 +361,14 @@ if __name__ == '__main__':
     # parser.add_argument('--EMOTION', type=str, default='default')
 
     parser.add_argument('--model', type=str, default='ernerf')  # musetalk wav2lip
+    # model为wav2lip256tritonreal时依赖的参数
+    parser.add_argument(
+        "--triton_url",
+        type=str,
+        required=False,
+        default="localhost:8001",
+        help="model==wav2lip256tritonreal时的Triton推理服务。具体部署参考项目digitalAvatar中介绍如何部署该Triton服务",
+    )
 
     parser.add_argument('--transport', type=str, default='rtcpush')  # rtmp webrtc rtcpush
     parser.add_argument('--push_url', type=str,
