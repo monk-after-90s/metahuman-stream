@@ -12,36 +12,12 @@ import multiprocessing as mp
 from lipasr import LipASR
 import asyncio
 from av import AudioFrame, VideoFrame
-from wav2lip.models import Wav2Lip
 from basereal import BaseReal
 
 from tqdm import tqdm
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} for inference.'.format(device))
-
-
-def _load(checkpoint_path):
-    if device == 'cuda':
-        checkpoint = torch.load(checkpoint_path)
-    else:
-        checkpoint = torch.load(checkpoint_path,
-                                map_location=lambda storage, loc: storage)
-    return checkpoint
-
-
-def load_model(path):
-    model = Wav2Lip()
-    print("Load checkpoint from: {}".format(path))
-    checkpoint = _load(path)
-    s = checkpoint["state_dict"]
-    new_s = {}
-    for k, v in s.items():
-        new_s[k.replace('module.', '')] = v
-    model.load_state_dict(new_s)
-
-    model = model.to(device)
-    return model.eval()
 
 
 def read_imgs(img_list):
@@ -64,7 +40,6 @@ def __mirror_index(size, index):
 
 
 def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_out_queue, res_frame_queue):
-    model = load_model("./models/wav2lip.pth")
     input_face_list = glob.glob(os.path.join(face_imgs_path, '*.[jpJP][pnPN]*[gG]'))
     input_face_list = sorted(input_face_list, key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
     face_list_cycle = read_imgs(input_face_list)
@@ -114,9 +89,12 @@ def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_
                 mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
 
                 with torch.no_grad():
-                    pred = model(mel_batch, img_batch)
+                    # pred = model(mel_batch, img_batch) todo 改为远程推理
+                    # mel_batch:(16,1,80,16) img_batch:(16,6,96,96)
+                    # pred: (16,3,96,96)
+                    ...
                 pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
-
+                # pred: (16,96,96,3)
                 counttime += (time.perf_counter() - t)
                 count += batch_size
                 # _totalframe += 1
@@ -135,7 +113,7 @@ def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_
 
 
 @torch.no_grad()
-class digitalAvatarReal(BaseReal):
+class wav2lip256TritonReal(BaseReal):
     def __init__(self, opt):
         super().__init__(opt)
         # self.opt = opt # shared with the trainer's opt to support in-place modification of rendering parameters.
