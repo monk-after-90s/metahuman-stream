@@ -208,6 +208,10 @@ async def run(push_url):
 # os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 # os.environ['MULTIPROCESSING_METHOD'] = 'forkserver'                                                    
 if __name__ == '__main__':
+    # 事件循环初始化
+    loop = asyncio.get_event_loop()
+    # asyncio.set_event_loop(loop)
+
     multiprocessing.set_start_method('spawn')
     parser = argparse.ArgumentParser()
     parser.add_argument('--pose', type=str, default="data/data_kf.json", help="transforms.json, pose source")
@@ -448,7 +452,6 @@ if __name__ == '__main__':
     for _ in range(opt.max_session):
         statreals.append(0)
 
-
     if opt.transport == 'rtmp':
         thread_quit = Event()
         rendthrd = Thread(target=nerfreals[0].render, args=(thread_quit,))
@@ -474,15 +477,15 @@ if __name__ == '__main__':
     for route in list(appasync.router.routes()):
         cors.add(route)
 
-    pagename='webrtcapi.html'
-    if opt.transport=='rtmp':
-        pagename='echoapi.html'
-    elif opt.transport=='rtcpush':
-        pagename='rtcpushapi.html'
-    print('start http server; http://<serverip>:'+str(opt.listenport)+'/'+pagename)
+    pagename = 'webrtcapi.html'
+    if opt.transport == 'rtmp':
+        pagename = 'echoapi.html'
+    elif opt.transport == 'rtcpush':
+        pagename = 'rtcpushapi.html'
+    print('start http server; http://<serverip>:' + str(opt.listenport) + '/' + pagename)
+
+
     def run_server(runner):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         loop.run_until_complete(runner.setup())
         site = web.TCPSite(runner, '0.0.0.0', opt.listenport)
         loop.run_until_complete(site.start())
