@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--asr_save_feats', action='store_true')
     # audio FPS
-    parser.add_argument('--fps', type=int, default=50)  # todo 适配，比如24
+    parser.add_argument('--fps', type=int, default=50)  # todo 适配，比如24。根据日志，这个也可能不需要动。
     # sliding window left-middle-right length (unit: 20ms)
     parser.add_argument('-l', type=int, default=10)
     parser.add_argument('-m', type=int, default=8)
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     # musetalk opt
     parser.add_argument('--avatar_id', type=str, default='avator_1')
     parser.add_argument('--bbox_shift', type=int, default=5)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=16)  # 慎动
 
     # parser.add_argument('--customvideo', action='store_true', help="custom video")
     # parser.add_argument('--customvideo_img', type=str, default='data/customvideo/img')
