@@ -397,7 +397,7 @@ if __name__ == '__main__':
 
     # LLM
     parser.add_argument('--llm_type', type=str, required=False, default='ChatGPT',
-                        help="大模型类型。这里的大模型使用仅供演示。生产环境还是需要单独处理大模型请求流程。")
+                        help="大模型类型。这里的对话只能处理单条用户问题，无历史记录，生产环境还是需要单独处理大模型请求流程。")
     parser.add_argument('--llm_model', type=str, required=False, default='gpt-4o-mini', help="大模型名字")
     parser.add_argument('--api_key', type=str, required=False, default='', help="大模型API私钥")
     parser.add_argument('--proxy_url', type=str, required=False, default='', help="大模型API代理地址")
