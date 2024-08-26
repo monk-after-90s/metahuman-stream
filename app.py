@@ -347,6 +347,9 @@ if __name__ == '__main__':
     parser.add_argument('--customvideo_config', type=str, default='')
 
     parser.add_argument('--tts', type=str, default='edgetts')  # xtts gpt-sovits
+    parser.add_argument('--edgetts_voicename', type=str, default='zh-CN-YunjianNeural',
+                        help="--tts使用edgetts时指定的发声人，可选项查看https://github.com/jsbxyyx/tts_java")  # xtts gpt-sovits
+
     parser.add_argument('--REF_FILE', type=str, default=None)
     parser.add_argument('--REF_TEXT', type=str, default=None)
     parser.add_argument('--TTS_SERVER', type=str, default='http://127.0.0.1:9880')  # http://localhost:9000
