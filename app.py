@@ -376,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--api_key', type=str, required=False, default='', help="大模型API私钥")
     parser.add_argument('--proxy_url', type=str, required=False, default='', help="大模型API代理地址")
     parser.add_argument('--base_url', type=str, required=False,
-                        default='https://api.openai.com/v1/',
+                        default='https://api.openai.com/v1',
                         help="大模型API的BaseURL。对于ChatGPT，这个值需要以“/v1”结尾")
 
     opt = parser.parse_args()
