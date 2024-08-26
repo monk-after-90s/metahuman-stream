@@ -53,6 +53,28 @@ def llm_response(message):
     return response
 
 
+async def llm_response_generator(message):
+    from llm.LLM import LLM
+    if opt.llm_type == "ChatGPT":
+        llm = LLM().init_model(opt.llm_type, model_path=opt.llm_model, api_key=opt.api_key,
+                               proxy_url=opt.proxy_url, openai_base_url=opt.base_url)
+    else:
+        raise NotImplementedError
+    # llm = LLM().init_model('Gemini', model_path= 'gemini-pro',api_key='Your API Key', proxy_url=None)
+    # llm = LLM().init_model('ChatGPT', model_path='gpt-3.5-turbo', api_key='Your API Key')
+    # llm = LLM().init_model('VllmGPT', model_path='THUDM/chatglm3-6b')
+    sentence = ""
+    async for token in llm.chat_stream(message):
+        # 拆句
+        for c in token:
+            if c in '“”‘’"。,，;；:：、？?！!' and sentence:
+                yield sentence
+                print(f"{sentence=}")
+                sentence = ""
+            else:
+                sentence += c
+
+
 @sockets.route('/humanchat')
 def chat_socket(ws):
     # 获取WebSocket对象
@@ -136,8 +158,8 @@ async def human(request):
     if params['type'] == 'echo':
         nerfreals[sessionid].put_msg_txt(params['text'])
     elif params['type'] == 'chat':
-        res = await asyncio.get_event_loop().run_in_executor(None, llm_response, params['text'])
-        nerfreals[sessionid].put_msg_txt(res)
+        async for sentence in llm_response_generator(params['text']):
+            nerfreals[sessionid].put_msg_txt(sentence)
 
     return web.Response(
         content_type="application/json",
