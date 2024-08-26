@@ -27,7 +27,7 @@ class LLM:
         if model_name == 'Gemini':
             llm = Gemini(model_path, api_key, proxy_url)
         elif model_name == 'ChatGPT':
-            llm = ChatGPT(model_path, api_key=api_key)
+            llm = ChatGPT(model_path, api_key=api_key, openai_base_url=openai_base_url)
         elif model_name == 'Qwen':
             llm = Qwen(model_path=model_path, api_key=api_key, api_base=proxy_url)
         elif model_name == 'VllmGPT':

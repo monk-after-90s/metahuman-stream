@@ -136,7 +136,7 @@ async def human(request):
     if params['type'] == 'echo':
         nerfreals[sessionid].put_msg_txt(params['text'])
     elif params['type'] == 'chat':
-        res = await asyncio.get_event_loop().run_in_executor(None, llm_response(params['text']))
+        res = await asyncio.get_event_loop().run_in_executor(None, llm_response, params['text'])
         nerfreals[sessionid].put_msg_txt(res)
 
     return web.Response(
@@ -371,7 +371,8 @@ if __name__ == '__main__':
     parser.add_argument('--listenport', type=int, default=8010)
 
     # LLM
-    parser.add_argument('--llm_type', type=str, required=False, default='ChatGPT', help="大模型类型")
+    parser.add_argument('--llm_type', type=str, required=False, default='ChatGPT',
+                        help="大模型类型。这里的大模型使用仅供演示。生产环境还是需要单独处理大模型请求流程。")
     parser.add_argument('--llm_model', type=str, required=False, default='gpt-4o-mini', help="大模型名字")
     parser.add_argument('--api_key', type=str, required=False, default='', help="大模型API私钥")
     parser.add_argument('--proxy_url', type=str, required=False, default='', help="大模型API代理地址")

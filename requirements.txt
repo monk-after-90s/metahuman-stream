@@ -42,3 +42,4 @@ accelerate
 librosa
 
 tritonclient[all]==2.40.0
+openai==1.42.0
