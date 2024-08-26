@@ -40,9 +40,14 @@ def echo_socket(ws):
 
 def llm_response(message):
     from llm.LLM import LLM
+    if opt.llm_type == "ChatGPT":
+        llm = LLM().init_model(opt.llm_type, model_path=opt.llm_model, api_key=opt.api_key,
+                               proxy_url=opt.proxy_url, openai_base_url=opt.base_url)
+    else:
+        raise NotImplementedError
     # llm = LLM().init_model('Gemini', model_path= 'gemini-pro',api_key='Your API Key', proxy_url=None)
-    # llm = LLM().init_model('ChatGPT', model_path= 'gpt-3.5-turbo',api_key='Your API Key')
-    llm = LLM().init_model('VllmGPT', model_path='THUDM/chatglm3-6b')
+    # llm = LLM().init_model('ChatGPT', model_path='gpt-3.5-turbo', api_key='Your API Key')
+    # llm = LLM().init_model('VllmGPT', model_path='THUDM/chatglm3-6b')
     response = llm.chat(message)
     print(response)
     return response
@@ -364,6 +369,14 @@ if __name__ == '__main__':
 
     parser.add_argument('--max_session', type=int, default=1)  # multi session count
     parser.add_argument('--listenport', type=int, default=8010)
+
+    # LLM
+    parser.add_argument('--llm_type', type=str, required=False, default='ChatGPT', help="大模型类型")
+    parser.add_argument('--llm_model', type=str, required=False, default='gpt-4o-mini', help="大模型名字")
+    parser.add_argument('--api_key', type=str, required=False, default='', help="大模型API私钥")
+    parser.add_argument('--proxy_url', type=str, required=False, default='', help="大模型API代理地址")
+    parser.add_argument('--base_url', type=str, required=False,
+                        default='https://api.openai.com/v1/', help="大模型API的BaseURL")
 
     opt = parser.parse_args()
     # app.config.from_object(opt)
