@@ -1,27 +1,15 @@
 # server.py
-from flask import Flask, render_template, send_from_directory, request, jsonify
+from flask import Flask
 from flask_sockets import Sockets
-import base64
-import time
 import json
-import gevent
-from gevent import pywsgi
-from geventwebsocket.handler import WebSocketHandler
-import os
-import re
-import numpy as np
 from threading import Thread, Event
 import multiprocessing
-
 from aiohttp import web
 import aiohttp
 import aiohttp_cors
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from webrtc import HumanPlayer
-
 import argparse
-
-import shutil
 import asyncio
 
 app = Flask(__name__)
