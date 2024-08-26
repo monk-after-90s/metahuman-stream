@@ -34,8 +34,6 @@ class BaseTTS:
         self.msgqueue = Queue()
         self.state = State.RUNNING
 
-        self.voicename = opt.edgetts_voicename
-
     def pause_talk(self):
         self.msgqueue.queue.clear()
         self.state = State.PAUSE
@@ -63,6 +61,10 @@ class BaseTTS:
 
 ###########################################################################################
 class EdgeTTS(BaseTTS):
+    def __init__(self, opt, parent):
+        super().__init__(opt, parent)
+        self.voicename = opt.edgetts_voicename
+
     def txt_to_audio(self, msg):
         text = msg
         t = time.time()
