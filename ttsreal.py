@@ -4,16 +4,14 @@ import soundfile as sf
 import resampy
 import asyncio
 import edge_tts
-
 from typing import Iterator
-
 import requests
-
 import queue
 from queue import Queue
 from io import BytesIO
-from threading import Thread, Event
+from threading import Thread
 from enum import Enum
+import httpx
 
 
 class State(Enum):
@@ -63,16 +61,16 @@ class BaseTTS:
 class EdgeTTS(BaseTTS):
     def __init__(self, opt, parent):
         super().__init__(opt, parent)
-        self.voicename = opt.edgetts_voicename
+        self.voicename = opt.voicename
 
     def txt_to_audio(self, msg):
         text = msg
         t = time.time()
-        asyncio.new_event_loop().run_until_complete(self.__main(self.voicename, text))
+        asyncio.new_event_loop().run_until_complete(self._main(self.voicename, text))
         print(f'-------edge tts time:{time.time() - t:.4f}s')
 
         self.input_stream.seek(0)
-        stream = self.__create_bytes_stream(self.input_stream)
+        stream = self._create_bytes_stream(self.input_stream)
         streamlen = stream.shape[0]
         idx = 0
         while streamlen >= self.chunk and self.state == State.RUNNING:
@@ -84,7 +82,7 @@ class EdgeTTS(BaseTTS):
         self.input_stream.seek(0)
         self.input_stream.truncate()
 
-    def __create_bytes_stream(self, byte_stream):
+    def _create_bytes_stream(self, byte_stream):
         # byte_stream=BytesIO(buffer)
         stream, sample_rate = sf.read(byte_stream)  # [T*sample_rate,] float64
         print(f'[INFO]tts audio stream {sample_rate}: {stream.shape}')
@@ -100,7 +98,7 @@ class EdgeTTS(BaseTTS):
 
         return stream
 
-    async def __main(self, voicename: str, text: str):
+    async def _main(self, voicename: str, text: str):
         communicate = edge_tts.Communicate(text, voicename)
 
         # with open(OUTPUT_FILE, "wb") as file:
@@ -114,6 +112,48 @@ class EdgeTTS(BaseTTS):
                 # file.write(chunk["data"])
             elif chunk["type"] == "WordBoundary":
                 pass
+
+
+class VitsSimple(EdgeTTS):
+    def __init__(self, opt, parent):
+        super().__init__(opt, parent)
+        self.url: str = opt.vits_simple_url
+        self._httpx_client: None | httpx.AsyncClient = None
+        self._loop = asyncio.new_event_loop()
+
+    def txt_to_audio(self, msg):
+        text = msg
+        t = time.time()
+        self._loop.run_until_complete(self._main(self.voicename, text))
+        print(f'-------edge tts time:{time.time() - t:.4f}s')
+
+        self.input_stream.seek(0)
+        stream = self._create_bytes_stream(self.input_stream)
+        streamlen = stream.shape[0]
+        idx = 0
+        while streamlen >= self.chunk and self.state == State.RUNNING:
+            self.parent.put_audio_frame(stream[idx:idx + self.chunk])
+            streamlen -= self.chunk
+            idx += self.chunk
+        # if streamlen>0:  #skip last frame(not 20ms)
+        #    self.queue.put(stream[idx:])
+        self.input_stream.seek(0)
+        self.input_stream.truncate()
+
+    @property
+    def httpx_client(self) -> httpx.AsyncClient:
+        self._httpx_client = self._httpx_client or httpx.AsyncClient(timeout=None, verify=False)
+        return self._httpx_client
+
+    async def _main(self, voicename: str, text: str):
+        response = await self.httpx_client.get(self.url.format(text))
+        # 检查请求是否成功
+        response.raise_for_status()
+        # 获取响应中的二进制数据
+        binary_data = response.content
+
+        if self.state == State.RUNNING:
+            self.input_stream.write(binary_data)
 
 
 ###########################################################################################
@@ -175,7 +215,7 @@ class VoitsTTS(BaseTTS):
                 stream = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32767
                 stream = resampy.resample(x=stream, sr_orig=32000, sr_new=self.sample_rate)
                 # byte_stream=BytesIO(buffer)
-                # stream = self.__create_bytes_stream(byte_stream)
+                # stream = self._create_bytes_stream(byte_stream)
                 streamlen = stream.shape[0]
                 idx = 0
                 while streamlen >= self.chunk:
@@ -242,7 +282,7 @@ class XTTS(BaseTTS):
                 stream = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32767
                 stream = resampy.resample(x=stream, sr_orig=24000, sr_new=self.sample_rate)
                 # byte_stream=BytesIO(buffer)
-                # stream = self.__create_bytes_stream(byte_stream)
+                # stream = self._create_bytes_stream(byte_stream)
                 streamlen = stream.shape[0]
                 idx = 0
                 while streamlen >= self.chunk:

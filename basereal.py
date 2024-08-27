@@ -2,7 +2,7 @@ import os
 import cv2
 import glob
 import soundfile as sf
-from ttsreal import EdgeTTS, VoitsTTS, XTTS
+from ttsreal import EdgeTTS, VoitsTTS, XTTS, VitsSimple
 from tqdm import tqdm
 
 
@@ -27,6 +27,8 @@ class BaseReal:
             self.tts = VoitsTTS(opt, self)
         elif opt.tts == "xtts":
             self.tts = XTTS(opt, self)
+        elif opt.tts == "vits-simple":
+            self.tts = VitsSimple(opt, self)
 
         self.curr_state = 0
         self.custom_img_cycle = {}

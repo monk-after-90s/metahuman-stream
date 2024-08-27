@@ -368,9 +368,13 @@ if __name__ == '__main__':
 
     parser.add_argument('--customvideo_config', type=str, default='')
 
-    parser.add_argument('--tts', type=str, default='edgetts')  # xtts gpt-sovits todo vits-simple
-    parser.add_argument('--edgetts_voicename', type=str, default='zh-CN-YunjianNeural',
-                        help="--tts使用edgetts时指定的发声人，可选项查看https://github.com/jsbxyyx/tts_java")  # xtts gpt-sovits
+    parser.add_argument('--tts', type=str, default='edgetts',
+                        help="tts model，可选edgetts、xtts、gpt-sovits、vits-simple")  # xtts gpt-sovits vits-simple
+    parser.add_argument('--voicename', type=str, default='zh-CN-YunjianNeural',
+                        help="指定的发声人，比如--tts edgetts时可选项查看https://github.com/jsbxyyx/tts_java；--tts vits-simple时这个参数无效")  # xtts gpt-sovits
+    parser.add_argument('--vits_simple_url', type=str,
+                        default='https://vits_simple.excn.top/voice/bert-vits2_n?speaker=Dr_yang&text={}',
+                        help="--tts vits-simple时的语音合成地址，要求里面有一对花括号，用以占位具体合成语音的文本")
 
     parser.add_argument('--REF_FILE', type=str, default=None)
     parser.add_argument('--REF_TEXT', type=str, default=None)
