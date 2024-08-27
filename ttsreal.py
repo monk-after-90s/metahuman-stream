@@ -124,6 +124,7 @@ class VitsSimple(EdgeTTS):
     def txt_to_audio(self, msg):
         text = msg
         t = time.time()
+        print(f'[INFO] text to tts:{text}')
         self._loop.run_until_complete(self._main(self.voicename, text))
         print(f'-------edge tts time:{time.time() - t:.4f}s')
 
