@@ -374,7 +374,7 @@ if __name__ == '__main__':
                         help="指定的发声人，比如--tts edgetts时可选项查看https://github.com/jsbxyyx/tts_java；--tts vits-simple时这个参数无效")  # xtts gpt-sovits
     parser.add_argument('--vits_simple_url', type=str,
                         default='https://vits_simple.excn.top/voice/bert-vits2_n?speaker=Dr_yang&text={}',
-                        help="--tts vits-simple时的语音合成地址，要求里面有一对花括号，用以占位具体合成语音的文本")
+                        help="--tts vits-simple时的语音合成地址，要求里面有一对花括号，用以占位具体合成语音的文本。默认值https://vits_simple.excn.top/voice/bert-vits2_n?speaker=Dr_yang&text={}")
 
     parser.add_argument('--REF_FILE', type=str, default=None)
     parser.add_argument('--REF_TEXT', type=str, default=None)
