@@ -8,7 +8,7 @@ class ChatGPT():
         self.openai_client: None | OpenAI | AsyncOpenAI = None
         self.model = model_path
 
-    def chat(self, message):
+    def chat(self, message):  # todo 接收可选chatid参数以维护聊天历史
         self.openai_client = self.openai_client or OpenAI(api_key=self.api_key, base_url=self.base_url)
         chat_completion = self.openai_client.chat.completions.create(
             messages=[
