@@ -19,6 +19,8 @@ from tqdm import tqdm
 import tritonclient.grpc.aio as grpcclient
 import tritonclient.utils.shared_memory as shm
 
+from webrtc import PlayerStreamTrack
+
 
 def read_imgs(img_list):
     frames = []
@@ -247,7 +249,7 @@ class wav2lip256TritonReal(BaseReal):
         self.tts.pause_talk()
         self.asr.pause_talk()
 
-    def process_frames(self, quit_event, loop=None, audio_track=None, video_track=None):
+    def process_frames(self, quit_event, loop=None, audio_track=None, video_track: PlayerStreamTrack | None = None):
 
         while not quit_event.is_set():
             try:

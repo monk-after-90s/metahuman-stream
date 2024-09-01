@@ -10,6 +10,7 @@ from av.packet import Packet
 from av import AudioFrame
 import fractions
 import numpy as np
+from av import VideoFrame
 
 AUDIO_PTIME = 0.020  # 20ms audio packetization
 VIDEO_CLOCK_RATE = 90000
@@ -106,7 +107,7 @@ class PlayerStreamTrack(MediaStreamTrack):
         #             frame = await self._queue.get()
         #     else:
         #         frame = await self._queue.get()
-        frame = await self._queue.get()
+        frame: VideoFrame = await self._queue.get()
         pts, time_base = await self.next_timestamp()
         frame.pts = pts
         frame.time_base = time_base
