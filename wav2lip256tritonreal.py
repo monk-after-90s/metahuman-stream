@@ -277,7 +277,7 @@ class wav2lip256TritonReal(BaseReal):
                 combine_frame[y1:y2, x1:x2] = res_frame
                 # print('blending time:',time.perf_counter()-t)
 
-            image = combine_frame  # (outputs['image'] * 255).astype(np.uint8)
+            image = combine_frame  # (outputs['image'] * 255).astype(np.uint8) shape:(h ,w, 3) dtype:np.uint8
             new_frame = VideoFrame.from_ndarray(image, format="bgr24")
             asyncio.run_coroutine_threadsafe(video_track._queue.put(new_frame), loop)
 
