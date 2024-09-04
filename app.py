@@ -1,6 +1,4 @@
 # server.py
-from flask import Flask
-from flask_sockets import Sockets
 import json
 from threading import Thread, Event
 import multiprocessing
@@ -12,45 +10,8 @@ from webrtc import HumanPlayer
 import argparse
 import asyncio
 
-app = Flask(__name__)
-sockets = Sockets(app)
 nerfreals = []
 statreals = []
-
-
-@sockets.route('/humanecho')
-def echo_socket(ws):
-    # 获取WebSocket对象
-    # ws = request.environ.get('wsgi.websocket')
-    # 如果没有获取到，返回错误信息
-    if not ws:
-        print('未建立连接！')
-        return 'Please use WebSocket'
-    # 否则，循环接收和发送消息
-    else:
-        print('建立连接！')
-        while True:
-            message = ws.receive()
-
-            if not message or len(message) == 0:
-                return '输入信息为空'
-            else:
-                nerfreal.put_msg_txt(message)
-
-
-def llm_response(message):
-    from llm.LLM import LLM
-    if opt.llm_type == "ChatGPT":
-        llm = LLM().init_model(opt.llm_type, model_path=opt.llm_model, api_key=opt.api_key,
-                               proxy_url=opt.proxy_url, openai_base_url=opt.base_url)
-    else:
-        raise NotImplementedError
-    # llm = LLM().init_model('Gemini', model_path= 'gemini-pro',api_key='Your API Key', proxy_url=None)
-    # llm = LLM().init_model('ChatGPT', model_path='gpt-3.5-turbo', api_key='Your API Key')
-    # llm = LLM().init_model('VllmGPT', model_path='THUDM/chatglm3-6b')
-    response = llm.chat(message)
-    print(response)
-    return response
 
 
 async def llm_response_generator(message):
@@ -75,112 +36,8 @@ async def llm_response_generator(message):
                 sentence += c
 
 
-@sockets.route('/humanchat')
-def chat_socket(ws):
-    # 获取WebSocket对象
-    # ws = request.environ.get('wsgi.websocket')
-    # 如果没有获取到，返回错误信息
-    if not ws:
-        print('未建立连接！')
-        return 'Please use WebSocket'
-    # 否则，循环接收和发送消息
-    else:
-        print('建立连接！')
-        while True:
-            message = ws.receive()
-
-            if len(message) == 0:
-                return '输入信息为空'
-            else:
-                res = llm_response(message)
-                nerfreal.put_msg_txt(res)
-
-
 #####webrtc###############################
 pcs = set()
-
-
-# @app.route('/offer', methods=['POST'])
-async def offer(request):
-    params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-
-    sessionid = len(nerfreals)
-    for index, value in enumerate(statreals):
-        if value == 0:
-            sessionid = index
-            break
-    if sessionid >= len(nerfreals):
-        print('reach max session')
-        return -1
-    statreals[sessionid] = 1
-
-    pc = RTCPeerConnection()
-    pcs.add(pc)
-
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():
-        print("Connection state is %s" % pc.connectionState)
-        if pc.connectionState == "failed":
-            await pc.close()
-            pcs.discard(pc)
-            statreals[sessionid] = 0
-        if pc.connectionState == "closed":
-            pcs.discard(pc)
-            statreals[sessionid] = 0
-
-    player = HumanPlayer(nerfreals[sessionid])
-    audio_sender = pc.addTrack(player.audio)
-    video_sender = pc.addTrack(player.video)
-
-    await pc.setRemoteDescription(offer)
-
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-
-    # return jsonify({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
-
-    return web.Response(
-        content_type="application/json",
-        text=json.dumps(
-            {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type, "sessionid": sessionid}
-        ),
-    )
-
-
-async def human(request):
-    params = await request.json()
-
-    sessionid = params.get('sessionid', 0)
-    if params.get('interrupt'):
-        nerfreals[sessionid].pause_talk()
-
-    if params['type'] == 'echo':
-        nerfreals[sessionid].put_msg_txt(params['text'])
-    elif params['type'] == 'chat':
-        async for sentence in llm_response_generator(params['text']):
-            nerfreals[sessionid].put_msg_txt(sentence)
-
-    return web.Response(
-        content_type="application/json",
-        text=json.dumps(
-            {"code": 0, "data": "ok"}
-        ),
-    )
-
-
-async def set_audiotype(request):
-    params = await request.json()
-
-    sessionid = params.get('sessionid', 0)
-    nerfreals[sessionid].set_curr_state(params['audiotype'], params['reinit'])
-
-    return web.Response(
-        content_type="application/json",
-        text=json.dumps(
-            {"code": 0, "data": "ok"}
-        ),
-    )
 
 
 async def on_shutdown(app):
@@ -211,8 +68,8 @@ async def run(push_url):
             pcs.discard(pc)
 
     player = HumanPlayer(nerfreals[0])
-    audio_sender = pc.addTrack(player.audio)
-    video_sender = pc.addTrack(player.video)
+    pc.addTrack(player.audio)
+    pc.addTrack(player.video)
 
     await pc.setLocalDescription(await pc.createOffer())
     answer = await post(push_url, pc.localDescription.sdp)
@@ -500,9 +357,6 @@ if __name__ == '__main__':
     #############################################################################
     appasync = web.Application()
     appasync.on_shutdown.append(on_shutdown)
-    appasync.router.add_post("/offer", offer)
-    appasync.router.add_post("/human", human)
-    appasync.router.add_post("/set_audiotype", set_audiotype)
     appasync.router.add_static('/', path='web')
 
     # Configure default CORS settings.
@@ -532,14 +386,6 @@ if __name__ == '__main__':
         if opt.transport == 'rtcpush':
             loop.run_until_complete(run(opt.push_url))
         loop.run_forever()
-        # Thread(target=run_server, args=(web.AppRunner(appasync),)).start()
 
 
     run_server(web.AppRunner(appasync))
-
-    # app.on_shutdown.append(on_shutdown)
-    # app.router.add_post("/offer", offer)
-
-    # print('start websocket server')
-    # server = pywsgi.WSGIServer(('0.0.0.0', 8000), app, handler_class=WebSocketHandler)
-    # server.serve_forever()

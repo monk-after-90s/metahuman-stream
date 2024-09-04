@@ -10,7 +10,6 @@ from threading import Thread
 import multiprocessing as mp
 import torch
 from tritonclient.utils import triton_to_np_dtype
-
 from lipasr import LipASR
 import asyncio
 from av import AudioFrame, VideoFrame
@@ -295,21 +294,16 @@ class wav2lip256TritonReal(BaseReal):
         print('musereal process_frames thread stop')
 
     def render(self, quit_event, loop=None, audio_track=None, video_track=None):
-        # if self.opt.asr:
-        #     self.asr.warm_up()
-
         self.tts.render(quit_event)
         self.init_customindex()
         process_thread = Thread(target=self.process_frames, args=(quit_event, loop, audio_track, video_track))
         process_thread.start()
 
         self.render_event.set()  # start infer process render
-        _starttime = time.perf_counter()
         # _totalframe=0
         while not quit_event.is_set():
             # update texture every frame
             # audio stream thread...
-            t = time.perf_counter()
             self.asr.run_step()
 
             # if video_track._queue.qsize()>=2*self.opt.batch_size:
@@ -319,8 +313,5 @@ class wav2lip256TritonReal(BaseReal):
                 print('sleep qsize=', video_track._queue.qsize())
                 time.sleep(0.04 * video_track._queue.qsize() * 0.8)
 
-            # delay = _starttime+_totalframe*0.04-time.perf_counter() #40ms
-            # if delay > 0:
-            #     time.sleep(delay)
         self.render_event.clear()  # end infer process render
         print('musereal thread stop')
