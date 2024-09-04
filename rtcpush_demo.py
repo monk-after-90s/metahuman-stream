@@ -80,7 +80,7 @@ async def get_pc(push_url):
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.create_task(get_pc('http://localhost:1985/rtc/v1/whip/?app=live&stream=livestream'))
-    try:
+    try:  # fixme 无法处理kill信号
         loop.run_forever()
     except:
         print("exception")
