@@ -1,4 +1,7 @@
+import uvloop
 import asyncio
+
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 from typing import Union
 from PIL import Image
 import numpy as np
@@ -79,6 +82,8 @@ if __name__ == '__main__':
     loop.create_task(get_pc('http://localhost:1985/rtc/v1/whip/?app=live&stream=livestream'))
     try:
         loop.run_forever()
+    except:
+        print("exception")
     finally:
         async def gracefully_close():
             try:
