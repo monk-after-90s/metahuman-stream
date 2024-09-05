@@ -11,6 +11,7 @@ from av import Packet
 from av.frame import Frame
 from av import VideoFrame
 import fractions
+import signal
 
 pc = None
 ast = None
@@ -77,38 +78,43 @@ async def get_pc(push_url):
     await pc.setRemoteDescription(RTCSessionDescription(sdp=answer, type='answer'))
 
 
+async def gracefully_close():
+    try:
+        await pc.close()
+    except:
+        pass
+    try:
+        not ast or ast.stop()
+    except:
+        ...
+    try:
+        not pst or pst.stop()
+    except:
+        pass
+    try:
+        not audio_tracker or await audio_tracker.stop()
+    except:
+        pass
+    try:
+        not video_tracker or await video_tracker.stop()
+    except:
+        pass
+    loop.stop()
+
+
+def safely_exit():
+    asyncio.create_task(gracefully_close())
+
+
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGTERM, safely_exit)
+    loop.add_signal_handler(signal.SIGINT, safely_exit)
+
     loop.create_task(get_pc('http://localhost:1985/rtc/v1/whip/?app=live&stream=livestream'))
-    try:  # fixme 无法处理kill信号
+
+    try:
         loop.run_forever()
-    except:
-        print("exception")
     finally:
-        async def gracefully_close():
-            try:
-                await pc.close()
-            except:
-                pass
-            try:
-                not ast or ast.stop()
-            except:
-                ...
-            try:
-                not pst or pst.stop()
-            except:
-                pass
-            try:
-                not audio_tracker or await audio_tracker.stop()
-            except:
-                pass
-            try:
-                not video_tracker or await video_tracker.stop()
-            except:
-                pass
-
-
-        loop.run_until_complete(gracefully_close())  # 如果生产环境不行，则只能用signal
-        loop.stop()
         loop.close()
-        print('=============================\nBye!')
+    exit()
