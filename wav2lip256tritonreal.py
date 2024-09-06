@@ -103,8 +103,8 @@ def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_
 
                 is_all_silence = True
                 audio_frames = []
-                for _ in range(batch_size * 2):
-                    frame, type = audio_out_queue.get()
+                for _ in range(batch_size * 2):  # 一个视频帧对应2个音频帧
+                    frame, type = audio_out_queue.get()  # frame:shape(320,) dtype float32
                     audio_frames.append((frame, type))
                     if type == 0:
                         is_all_silence = False
@@ -151,6 +151,7 @@ def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_
                     for i, res_frame in enumerate(pred):
                         # self.__pushmedia(res_frame,loop,audio_track,video_track)
                         res_frame_queue.put((res_frame, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
+                        print(f"not is_all_silence: {audio_frames[i * 2:i * 2 + 2]=}")
                         index = index + 1
                     # print('total batch time:',time.perf_counter()-starttime)
             else:
