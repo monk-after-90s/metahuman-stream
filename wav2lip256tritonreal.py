@@ -113,6 +113,7 @@ def inference(render_event, batch_size, face_imgs_path, audio_feat_queue, audio_
                     for i in range(batch_size):
                         res_frame_queue.put((None, __mirror_index(length, index), audio_frames[i * 2:i * 2 + 2]))
                         index = index + 1
+                        # print(f"is_all_silence: {audio_frames[i * 2:i * 2 + 2]=}")
                 else:
                     # print('infer=======')
                     t = time.perf_counter()
