@@ -23,7 +23,7 @@ async def post(url, data):
 
 
 class FileVideoStreamTrack(VideoStreamTrack):
-    def __init__(self, player):
+    def __init__(self, player: MediaPlayer):
         super().__init__()  # don't forget this!
         self.player = player
 
@@ -36,7 +36,7 @@ class FileVideoStreamTrack(VideoStreamTrack):
 
 
 class FileAudioStreamTrack(AudioStreamTrack):
-    def __init__(self, player):
+    def __init__(self, player: MediaPlayer):
         super().__init__()  # don't forget this!
         self.player = player
 
