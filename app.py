@@ -188,7 +188,7 @@ async def set_audiotype(request):
 
 async def on_shutdown(app):
     # close peer connections
-    print("on_shutdown")
+    print("on_shutdown")  # todo 整合进on_connectionstatechange
     loop = asyncio.get_running_loop()
 
     coros = [pc.close() for pc in pcs]
