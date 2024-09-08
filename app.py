@@ -1,4 +1,5 @@
 # server.py
+import signal
 from flask import Flask
 from flask_sockets import Sockets
 import json
@@ -98,6 +99,7 @@ def chat_socket(ws):
 
 #####webrtc###############################
 pcs = set()
+players = set()
 
 
 # @app.route('/offer', methods=['POST'])
@@ -130,6 +132,7 @@ async def offer(request):
             statreals[sessionid] = 0
 
     player = HumanPlayer(nerfreals[sessionid])
+    players.add(player)
     audio_sender = pc.addTrack(player.audio)
     video_sender = pc.addTrack(player.video)
 
@@ -185,9 +188,18 @@ async def set_audiotype(request):
 
 async def on_shutdown(app):
     # close peer connections
+    print("on_shutdown")
+    loop = asyncio.get_running_loop()
+
     coros = [pc.close() for pc in pcs]
-    await asyncio.gather(*coros)
     pcs.clear()
+
+    for player in players:
+        player.stop()
+    try:
+        await asyncio.gather(*coros)
+    finally:
+        loop.stop()
 
 
 async def post(url, data):
@@ -211,6 +223,7 @@ async def run(push_url):
             pcs.discard(pc)
 
     player = HumanPlayer(nerfreals[0])
+    players.add(player)
     audio_sender = pc.addTrack(player.audio)
     video_sender = pc.addTrack(player.video)
 
@@ -219,12 +232,19 @@ async def run(push_url):
     await pc.setRemoteDescription(RTCSessionDescription(sdp=answer, type='answer'))
 
 
+def safely_exit():
+    asyncio.create_task(on_shutdown(None))
+
+
 ##########################################
 # os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 # os.environ['MULTIPROCESSING_METHOD'] = 'forkserver'                                                    
 if __name__ == '__main__':
     # 事件循环初始化
     loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGTERM, safely_exit)
+    loop.add_signal_handler(signal.SIGINT, safely_exit)
+
     # asyncio.set_event_loop(loop)
 
     multiprocessing.set_start_method('spawn')

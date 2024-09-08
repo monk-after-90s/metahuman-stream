@@ -190,9 +190,11 @@ class HumanPlayer:
             )
             self.__thread.start()
 
-    def _stop(self, track: PlayerStreamTrack) -> None:
-        self.__started.discard(track)
+    def stop(self):
+        for track in self.__started:
+            self._stop(track)
 
+    def _stop(self, track: PlayerStreamTrack) -> None:
         if not self.__started and self.__thread is not None:
             self.__log_debug("Stopping worker thread")
             self.__thread_quit.set()
