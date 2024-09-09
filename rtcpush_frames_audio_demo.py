@@ -6,7 +6,7 @@ from typing import Union
 from PIL import Image
 import numpy as np
 import aiohttp
-from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack, VideoStreamTrack, AudioStreamTrack, \
+from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack, AudioStreamTrack, \
     RTCRtpSender
 from av import Packet
 from av.frame import Frame
