@@ -19,7 +19,7 @@ pc = None
 ast: None | AudioStreamTrack = None
 pst = None
 audio_sender: None | RTCRtpSender = None
-video_sender = None
+video_sender: None | RTCRtpSender = None
 
 
 async def post(url, data):
@@ -32,28 +32,48 @@ async def post(url, data):
 
 
 class PlayerStreamTrack(MediaStreamTrack):
+    """视频轨道和音频轨道"""
+
     def __init__(self, kind="video"):
         super().__init__()
         self.frame_count = 0
         self.kind = kind
-
+        # video
         img = Image.open('girl.jpeg')
         try:
             img_array = np.array(img)
+        except:
+            raise
+        else:
+            new_frame = VideoFrame.from_ndarray(img_array, format="rgb24")
+            new_frame.time_base = fractions.Fraction(1, 25)  # 视频25fps
+            self.video_frame = new_frame
         finally:
             img.close()
+        # audio
+        self.pts = 0
+        self.time_base = Fraction(1, 16000)
 
-        new_frame = VideoFrame.from_ndarray(img_array, format="rgb24")
-        new_frame.time_base = fractions.Fraction(1, 25)  # 视频25fps
-        self.new_frame = new_frame
+    def get_audio_frame(self):
+        frame = np.zeros(320, dtype=np.float32)
+        frame = (frame * 32767).astype(np.int16)
+        new_frame = AudioFrame(format='s16', layout='mono', samples=frame.shape[0])
+        new_frame.planes[0].update(frame.tobytes())
+        new_frame.sample_rate = 16000
+
+        new_frame.pts = self.pts
+        self.pts += 320  # 16000/50，音频50fps
+        new_frame.time_base = self.time_base
+
+        return new_frame
 
     async def recv(self) -> Union[Frame, Packet]:
         if self.kind == "video":
             self.frame_count += 1
-            self.new_frame.pts = self.frame_count
-            return self.new_frame
+            self.video_frame.pts = self.frame_count
+            return self.video_frame
         else:
-            return get_audio_frame()
+            return self.get_audio_frame()
 
 
 async def get_pc(push_url):
@@ -82,50 +102,30 @@ async def get_pc(push_url):
     await pc.setRemoteDescription(RTCSessionDescription(sdp=answer, type='answer'))
 
 
-async def gracefully_close():
-    try:
-        await pc.close()
-    except:
-        pass
-    try:
-        not ast or ast.stop()
-    except:
-        ...
-    try:
-        not pst or pst.stop()
-    except:
-        pass
-    try:
-        not audio_sender or await audio_sender.stop()
-    except:
-        pass
-    try:
-        not video_sender or await video_sender.stop()
-    except:
-        pass
-    loop.stop()
-
-
-pts = 0
-time_base = Fraction(1, 16000)
-
-
-def get_audio_frame():
-    frame = np.zeros(320, dtype=np.float32)
-    frame = (frame * 32767).astype(np.int16)
-    new_frame = AudioFrame(format='s16', layout='mono', samples=frame.shape[0])
-    new_frame.planes[0].update(frame.tobytes())
-    new_frame.sample_rate = 16000
-
-    global pts
-    new_frame.pts = pts
-    pts += 320  # 16000/50，音频50fps
-    new_frame.time_base = time_base
-
-    return new_frame
-
-
 def safely_exit():
+    async def gracefully_close():
+        try:
+            await pc.close()
+        except:
+            pass
+        try:
+            not ast or ast.stop()
+        except:
+            ...
+        try:
+            not pst or pst.stop()
+        except:
+            pass
+        try:
+            not audio_sender or await audio_sender.stop()
+        except:
+            pass
+        try:
+            not video_sender or await video_sender.stop()
+        except:
+            pass
+        loop.stop()
+
     asyncio.create_task(gracefully_close())
 
 

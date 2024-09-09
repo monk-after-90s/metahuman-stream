@@ -190,12 +190,12 @@ class NeRFReal(BaseReal):
         #         frame,type = self.asr.get_audio_out()
         #         audiotype += type
         #         frame = (frame * 32767).astype(np.int16)
-        #         new_frame = AudioFrame(format='s16', layout='mono', samples=frame.shape[0])
-        #         new_frame.planes[0].update(frame.tobytes())
-        #         new_frame.sample_rate=16000
+        #         video_frame = AudioFrame(format='s16', layout='mono', samples=frame.shape[0])
+        #         video_frame.planes[0].update(frame.tobytes())
+        #         video_frame.sample_rate=16000
         #         # if audio_track._queue.qsize()>10:
         #         #     time.sleep(0.1)
-        #         asyncio.run_coroutine_threadsafe(audio_track._queue.put(new_frame), loop)  
+        #         asyncio.run_coroutine_threadsafe(audio_track._queue.put(video_frame), loop)
         #t = time.time()
         if audiotype1!=0 and audiotype2!=0 and self.custom_index.get(audiotype1) is not None: #不为推理视频并且有自定义视频
             mirindex = self.mirror_index(len(self.custom_img_cycle[audiotype1]),self.custom_index[audiotype1])
